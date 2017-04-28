@@ -16,7 +16,9 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Random;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.ConsoleHandler;
@@ -74,7 +76,7 @@ public class EZshareServer {
     			
     			 TimerTask tk=new TimerTask(){
      		    	public void run(){
-     		    		if(serverRecord!=null){
+     		    		if(serverRecord != null){
      		    		Random random=new Random();
      		    		JSONObject connect=serverRecord.get(random.nextInt(serverRecord.size()-1));
      		    		String connectHost=connect.get("hostname").toString();
@@ -113,7 +115,14 @@ public class EZshareServer {
     				Socket client = server.accept();
     				
     				// Start a new thread for a connection
-    				Thread t = new Thread(() -> serveClient(client, resourceMap, serverRecord));
+    				Thread t = new Thread(() -> {
+						try {
+							serveClient(client,resourceMap,serverRecord);
+						} catch (URISyntaxException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					});
     				t.start();
     			}
     			
@@ -125,11 +134,10 @@ public class EZshareServer {
 
       }
       
-  	private static void serveClient(Socket client,HashMap<JSONObject,JSONObject> resourceMap,ArrayList<JSONObject> serverRecord){
+  	private static void serveClient(Socket client,HashMap<JSONObject,JSONObject> resourceMap,ArrayList<JSONObject> serverRecord) throws URISyntaxException{
   		
   		EZshareServer errorJudge = new EZshareServer(); 
-  		//System.out.println("connect");
-  		//output.writeWTF(RESOURCE);
+  		
 		try(Socket clientSocket = client){
 			// Input stream
 			DataInputStream input = new DataInputStream(clientSocket.
@@ -151,21 +159,21 @@ public class EZshareServer {
 		    //publish
 		    case "PUBLISH":{
 		    	JSONObject resource=(JSONObject)command.get("resource");
-		    	System.out.println(resource.toJSONString());
 		    	
 		    	if(errorJudge.rulesJudge(resource, resourceMap) == false){
 		    		response.put("response", "error"); 
 		    		response.put("errorMessage", "cannot publish resource");
 		    	}else{
-		    		if(errorJudge.uriIsfile(resource) == true || errorJudge.uriJudge(resource) == false){
+		    		if(resource.get("uri").toString().equals("")||errorJudge.uriIsfile(resource) == true 
+		    				|| errorJudge.uriJudge(resource) == false){
 		    			response.put("response", "error");
 		    			response.put("errorMessage", "missing resource");
 		    		}else{
-		    			if(resource.get("owner").toString().equals("\\*")){
+		    			if(resource.get("owner").toString().equals("*")){
 		    				response.put("response", "error");
 			    			response.put("errorMessage", "invalid resource");
 		    			}else{
-		    				response=dataProc.publish(resource, resourceMap,hostInfo);
+		    				response =dataProc.publish(resource, resourceMap);
 		    			}
 		    		}
 		    	}
@@ -176,12 +184,12 @@ public class EZshareServer {
 		    //remove
 		    case "REMOVE":{
 		    	JSONObject resource=(JSONObject)command.get("resource");
-		    	response=dataProc.remove(resource, resourceMap);
-		    	if(errorJudge.uriIsfile(resource) == true || errorJudge.uriJudge(resource) == false){
+		    	if(resource.get("uri").toString().equals("")|| errorJudge.uriJudge(resource) == false){
 		    		response.put("response", "error");
 	    			response.put("errorMessage", "missing resource");
-		    	}else{
-		    		response = dataProc.remove(resource, resourceMap);
+		    	}else{		    		
+		    		response = dataProc.remove(resource, resourceMap);	    		
+		    		
 		    	}
 		    	output.writeUTF(response.toJSONString());
 		    	break;
@@ -190,24 +198,32 @@ public class EZshareServer {
 		    //share
 		    case "SHARE" :{
 		    	JSONObject resource=(JSONObject)command.get("resource");
-		    	if(command.get("secret").toString().equals(secret) == false){
+		    	URI link;
+		    	link = new URI(resource.get("uri").toString());
+		    	String path = link.getPath();
+		    	File f = new File(path);
+		    	System.out.println(resource.get("uri").toString());
+		    	if(f.exists() == false||command.get("secret").toString().equals("")||resource.get("uri").toString().equals("")
+						||errorJudge.uriIsfile(resource)== false || errorJudge.uriJudge(resource) == false){
 		    		response.put("response", "error");
-		    		response.put("errorMessage", "incorrect secret");
+	    			response.put("errorMessage", "missing resource and/or secret");
 		    	}
 		    	else{
-		    		if(errorJudge.uriIsfile(resource)== false && errorJudge.uriJudge(resource) == false){
+		    		if(command.get("secret").toString().equals(secret) == false){
 		    			response.put("response", "error");
-		    			response.put("errorMessage", "missing resource and/or secret");
+			    		response.put("errorMessage", "incorrect secret");
+		    			
 		    		}else{
 		    			if(errorJudge.rulesJudge(resource, resourceMap) == false){
 		    				response.put("response", "error");
 		    				response.put("errorMessage", "cannot share resource");
 		    			}else{
-		    				if(resource.get("owner").toString().equals("\\*")){
+		    				if(resource.get("owner").toString().equals("*")){
 		    					response.put("response", "error");
 				    			response.put("errorMessage", "invalid resource");
 		    				}else{
-		    					response=dataProc.share(resource, resourceMap,hostInfo);
+		    					response=dataProc.share(resource, resourceMap);	
+		    					
 		    				}
 		    			}
 		    		}
@@ -216,59 +232,46 @@ public class EZshareServer {
 		    	break;
 		    }
 		    
+		    //query
 		    case "QUERY" :{
-		        JSONObject resourceTemp=(JSONObject)command.get("resource");
-		        JSONArray result=dataProc.query(resourceTemp, resourceMap);
-		        if((Boolean)command.get("relay")){
-		         command.replace("relay", false);
-		         //send message to other servers in serverRecord
-		         if(!serverRecord.isEmpty()){
-		          for(int i=0;i<serverRecord.size();i++){
-		              JSONObject connect=serverRecord.get(i);
-		              String connectHost=connect.get("hostname").toString();
-		              int connectPort=Integer.parseInt(connect.get("port").toString());
-		              try(Socket socket=new Socket(connectHost,connectPort)){
-		               DataOutputStream sOutput = new DataOutputStream(socket.getOutputStream());
-		               DataInputStream sInput=new DataInputStream(socket.getInputStream());
-		               sOutput.writeUTF(command.toJSONString());
-		               JSONArray sResult=(JSONArray) parser.parse(sInput.readUTF());
-		               result.addAll(sResult);
-		              
-		              } catch (UnknownHostException e) {
-		               //delete the host if it does not respond
-		               //serverRecord.remove(connect);
-		               
-		       } catch (IOException e) {
-		        // TODO Auto-generated catch block
-		        //e.printStackTrace();
-		       }
-		          }
-		              }
-		        }
-		        else{
-		         output.writeUTF(result.toJSONString());
-		        }
-		        break;
-		       }
-		    case "FETCH" :{
-		    	JSONObject resourceTemp = (JSONObject) command.get("resource");
-		    	if(resourceTemp == null||!errorJudge.uriIsfile(resourceTemp)||!errorJudge.uriJudge(resourceTemp)){ //or .isEmpty?
-		    		response.put("response", "error");
-		    		response.put("errorMessage", "missing resourceTemplate");
+		    	JSONObject resourceTemp=(JSONObject)command.get("resource");
+		    	JSONArray result=dataProc.query(resourceTemp, resourceMap);
+		    	if((Boolean)command.get("relay")){
+		    		command.replace("relay", false);
+		    		//send message to other servers in serverRrcord
+		    		if(serverRecord.isEmpty() == false){
+		    			for(int i=0; i<serverRecord.size();i++){
+		    				JSONObject connect = serverRecord.get(i);
+		    				String connectHost = connect.get("hostname").toString();
+		    				int connectPort = Integer.parseInt(connect.get("port").toString());
+		    				try(Socket socket = new Socket(connectHost,connectPort)){
+		    					DataOutputStream sOutput = new DataOutputStream(socket.getOutputStream());
+		    					DataInputStream sInput = new DataInputStream(socket.getInputStream());
+		    					sOutput.writeUTF(command.toJSONString());
+		    					JSONArray sResult = (JSONArray) parser.parse(sInput.readUTF());
+		    					result.addAll(sResult);
+		    					
+		    				}catch(IOException e){
+		    				}
+		    			}
+		    		}
 		    	}
 		    	else{
-		    		// check the channel match
-		    		JSONObject resResponse = dataProc.fetch(resourceTemp, resourceMap);
-		    		if(!resResponse.containsKey("errorMessage")){
-		    			
-		    		}
-		    		else{
-		    			fileTransfer.send(command, output);
-		    		}
+		    		//result=dataProc.query(resourceTemp, resourceMap,hostInfo);
+		    		output.writeUTF(result.toJSONString());
 		    	}
-		    	output.writeUTF(response.toJSONString());
 		    	break;
 		    }
+		    
+		    
+		    //fetch
+		    case "FETCH" :{
+		    	
+		    	
+		    	break;
+		    }
+		    
+		    //exchange
 		    case "EXCHANGE" :{
 		    	if(command.get("serverList").toString().isEmpty()){
 		    		response.put("response", "error");
@@ -286,6 +289,10 @@ public class EZshareServer {
 		    	break;
 		    }
 		    }
+		    
+  			Set<JSONObject> Keyset = resourceMap.keySet();
+  			System.out.println("keyset: "+Keyset);
+			System.out.println("resourceMap: "+resourceMap);
 			
 			
 		} catch (IOException e) {
@@ -303,18 +310,26 @@ public class EZshareServer {
   		String channel = (String) resource.get("channel");
   		String uri = (String) resource.get("uri");
   		String owner = (String) resource.get("owner");
-  		ArrayList<JSONObject> KeyList = (ArrayList<JSONObject>) resourceMap.keySet();
-  		
-  		for(int i=0;i<KeyList.size();i++){
-  			String KeyChannel = (String) KeyList.get(i).get("channel");
-  			String KeyUri = (String) KeyList.get(i).get("uri");
-  			String KeyOwner = (String) KeyList.get(i).get("owner");
-  			if(KeyChannel.equals(channel) && KeyUri.equals(uri)){
-  				if(KeyOwner.equals(owner) == false){
-  					return false;
-  				}
-  			}
+  		JSONObject key = new JSONObject();
+  		key.put("channel", channel);
+  		key.put("uri", uri);
+  		key.put("owner", owner);
+  		if(!resourceMap.isEmpty()){
+  			
+  			Set<JSONObject> Keyset = resourceMap.keySet(); 	  		
+  	  		for(Iterator<JSONObject> it = Keyset.iterator(); it.hasNext();){
+  	  			JSONObject keyInlist = it.next();
+  	  			String KeyChannel = keyInlist.get("channel").toString();
+  	  			String KeyUri = keyInlist.get("uri").toString();
+  	  			String KeyOwner = keyInlist.get("owner").toString();
+  	  			if(KeyChannel.equals(channel) && KeyUri.equals(uri)){
+  	  				if(KeyOwner.equals(owner) == false){
+  	  					return false;
+  	  				}
+  	  			}
+  	  		}
   		}
+  		
   		
   		return true;
   	}
@@ -357,5 +372,4 @@ public class EZshareServer {
   		return true;
   	}
       
-  
 }
