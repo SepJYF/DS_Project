@@ -291,8 +291,11 @@ public class EZshareServer {
 		    		JSONObject resResponse = dataProc.fetch(resourceTemp, resourceMap);
 		    		if(!resResponse.containsKey("errorMessage")){
 		    			System.out.println("step 1"+resResponse);
-		    			response = resResponse;
-		    			fileTransfer.send(response, output);
+		    			resourceTemp.put("resourceSize", resResponse.get("resourceSize"));
+		    			response.put("response", "success");
+		    			response.put("resultSize", resResponse.get("resultSize"));
+		    	
+		    			fileTransfer.send(resourceTemp, output);
 		    		}
 		    		else{
 		    			System.out.println("step 2");

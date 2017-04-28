@@ -58,26 +58,27 @@ public class EZshareClient {
 		    	log.fine("SENT:"+arguments.toJSONString());
 		    	output.flush();
 		    	System.out.println("step 2");
+            	
+            	
 		    	
 			    while(true){
 	                        if(input.available() > 0) {
 	                        	
-	                        	String message=input.readUTF();
-	                        	
+	                        	String result=input.readUTF();
 	                        	JSONParser parser = new JSONParser();
-	                        	JSONObject response = (JSONObject) parser.parse(message);
-	                        	
-	                        	/*if(response.containsKey("resourceSize")){
-	                        		
-	                        		System.out.println("03"+response);
-	                        		fileTransfer.receive(response, input);
-	                        	}*/
-	                        	if(arguments.containsKey("fetch")){
+	                        	JSONObject response = (JSONObject) parser.parse(result);
+	            		    	if(arguments.containsKey("fetch")){
 	                        		fileTransfer.receive(response, input);
 	                        	}
+	                        	//JSONParser parser = new JSONParser();
+	                        	//JSONObject response = (JSONObject) parser.parse(message);
 	                        	
-	                        	log.fine("RECEIVED:"+message);
-	                        	System.out.println(message);
+	                        	System.out.println("step 3:"+response);
+	                        	
+	                        	
+	                        	
+	                        	log.fine("RECEIVED:"+result);
+	                        	System.out.println(result);
 	                        }
 		    		
 			    }

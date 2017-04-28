@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 
 import org.json.simple.JSONObject;
@@ -17,11 +19,12 @@ public class fileTransfer {
 	public static void send(JSONObject response,DataOutputStream output){
 		System.out.println("**^^go to the send method^^**");
 		System.out.println(response);
-		try{	
-			JSONObject result = new JSONObject();
-			String filePath = (String) response.get("uri");
+		try{
+			output.writeUTF(response.toJSONString()); //?
 			
-			File f = new File("/Users"+filePath);
+			URI filePath = new URI ((String) response.get("uri"));
+			
+			File f = new File("/Users"+filePath.getPath());
 			
 			System.out.println("*** show the file path:"+f);
 			
@@ -35,8 +38,8 @@ public class fileTransfer {
 			byteFile.close();
 				
 			output.writeUTF(response.toJSONString());
-			output.flush();
-		} catch (IOException e) {
+			//output.flush();
+		} catch (IOException | URISyntaxException e) {
 			e.printStackTrace();
 		}
 	}

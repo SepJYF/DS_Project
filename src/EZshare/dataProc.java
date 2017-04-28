@@ -192,7 +192,7 @@ public class dataProc {
 		public static JSONObject fetch(JSONObject resource,HashMap<JSONObject,JSONObject> resourceMap) throws ParseException, URISyntaxException{
 			
 			System.out.println("*&&&&*--- go to the dataProcess fetch method~~~~***");
-			
+			HashMap<JSONObject,JSONObject> map=new HashMap<JSONObject,JSONObject>();
 			JSONObject response = new JSONObject();
 			JSONObject resResource = new JSONObject();
 			int num = 0;
@@ -212,14 +212,14 @@ public class dataProc {
 					File f = new File(filePath);
 					if(f.exists()){
 						System.out.println("------------test the getKey-----------"+key);
+						JSONParser parser = new JSONParser();
 						
-						resResource.put(key, resourceMap.get(key));
+						map.put(key, resourceMap.get(key));
+						//resResource.put(key, resourceMap.get(key));
+						//resResource.put("RESOURCE", map);
 						resResource.put("resourceSize", Long.toString(f.length()));
 						
 						System.out.println(" ");
-						JSONParser parser = new JSONParser();
-						//resResource.put("RESOURCE", parser.parse(key.toString()+resourceMap.get(key).toString()));
-						//resResource.put(parser.parse(key.toString()),resourceMap.get(key).toString());
 						
 						System.out.println("======response resource======"+resResource);
 						
@@ -230,7 +230,7 @@ public class dataProc {
 			if(num>0){
 				response = resResource;  //?
 				response.put("resultSize", num);
-				response.put("response", "success");
+				
 				
 			}else{
 				response.put("response", "error");
